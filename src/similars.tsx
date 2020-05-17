@@ -65,20 +65,26 @@ export class Similars extends React.PureComponent<Props, State> {
         const url = service.getThumbnailPath(s.group, s.index);
         return <>
             <img src={url} alt="" />
-            <div>{s.group}-{s.index} (&Delta;: {s.diff}/64)</div>
+            <span>{s.group}-{s.index} (&Delta;: {s.diff}/64)</span>
         </>;
     }
 
     private renderContent(connected: boolean): React.ReactNode {
         if (!connected)
-            return <div>Not connected</div>;
+            return <div className="notice warning">
+                <h1>No Curator</h1>
+                <div>Please connect to a curator</div>
+            </div>;
 
         const {directory, file} = this.props;
         if (getFileId(directory, file) !== this.state.loadedFile)
-            return <div>Loading</div>;
+            return <div className="msg">Loading</div>;
 
         if (this.state.fault)
-            return <div>{this.state.fault}</div>;
+            return <div className="notice error">
+                <h1>Error</h1>
+                <div>{this.state.fault}</div>
+            </div>;
         
         if (this.state.similars)
             return <ul>
@@ -93,16 +99,16 @@ export class Similars extends React.PureComponent<Props, State> {
     render() {
         const {enabled} = this.state;
         const className = enabled
-            ? "curator similars enabled"
-            : "curator similars";
+            ? "panel curator similars focus"
+            : "panel curator similars";
 
         return <span className={className}>
-            <div>
-                <button onClick={this.handleToggleEnabled}>
-                    <Icon path={mdiEye} />
-                </button>
-            </div>
             <span className="background">
+                <div>
+                    <button onClick={this.handleToggleEnabled}>
+                        <Icon path={mdiEye} />
+                    </button>
+                </div>
                 {enabled && <Connected>{this.renderContent}</Connected>}
             </span>
         </span>;

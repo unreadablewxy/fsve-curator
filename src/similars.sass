@@ -1,3 +1,6 @@
+$space-narrow: 0.3em
+$space-default: 0.6em
+
 .curator
     svg
         width: 1.5em
@@ -9,18 +12,43 @@
     left: 0
 
     .background
-        display: none
-        padding: 0.6em 0.3em
+        display: inline-flex
+        flex-direction: column
+        max-height: 90vh
+        max-width: 30vw
 
-    &.enabled .background
-        display: inline-block
+    &.focus .background > ul
+        display: inline-flex
+
+    button
+        padding: $space-narrow
+        margin: 0 $space-narrow
+
+        &::active
+            background-color: transparent
+
+    ul, li, img
+        flex-shrink: 1
+        min-height: 0
 
     ul, li
         padding: 0
-        margin: 0
+        flex-direction: column
 
     ul
         list-style: none
+        display: none
+        margin: 0
 
     li
-        display: block
+        display: inline-flex
+        margin: $space-narrow $space-narrow 0 $space-narrow
+
+    img
+        object-fit: scale-down
+
+    .msg
+        padding: $space-narrow $space-default
+
+    .notice
+        margin: $space-narrow $space-default
