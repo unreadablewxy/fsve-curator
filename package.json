@@ -20,7 +20,9 @@
   "scripts": {
     "test-types": "tsc",
     "build": "webpack --mode=production",
-    "watch": "webpack --mode=development --watch"
+    "watch": "webpack --mode=development --watch",
+    "clean": "rm -rf build",
+    "link": "mkdir -p ~/.fs-viewer-extensions/fs-curator && ln -s $PWD/build/index.* ~/.fs-viewer-extensions/fs-curator"
   },
   "devDependencies": {
     "@babel/core": "^7.9.6",

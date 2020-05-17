@@ -10,7 +10,7 @@ const externals = {
 
 module.exports = [
     from("./src/index.ts")
-        .withCss()
+        .withCss("index.css")
         .withReact()
         .withExternals(externals)
         .asLibrary("umd2", "extension")
