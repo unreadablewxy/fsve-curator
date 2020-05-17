@@ -23,9 +23,7 @@ export class Menu extends React.PureComponent<Props> {
 
     render() {
         return <ul className="menu curator">
-            <li>
-                <Connected>{this.renderConnectionToggle}</Connected>
-            </li>
+            <Connected>{this.renderConnectionToggle}</Connected>
         </ul>;
     }
 
@@ -41,17 +39,25 @@ export class Menu extends React.PureComponent<Props> {
         let caption: string;
 
         if (connected) {
-            icon = mdiPowerPlug;
-            caption = "Connected";
-        } else {
             icon = mdiPowerPlugOff;
-            caption = "Disconnected";
+            caption = "Disconnect";
+        } else {
+            icon = mdiPowerPlug;
+            caption = "Connect";
         }
 
-        return <button className="toggle" onClick={this.handleToggleConnect}>
-            <Icon path={icon} />
-            <span>{caption}</span>
-        </button>;
+        return <>
+            <li>
+                <div>{connected ? "Connected, using collection:" : "Not Connected"}</div>
+            </li>
+            {connected && <li className="textual">{service.collectionPath()}</li>}
+            <li>
+                <button className="toggle" onClick={this.handleToggleConnect}>
+                    <Icon path={icon} />
+                    <span>{caption}</span>
+                </button>
+            </li>
+        </>;
     }
 }
 

@@ -67,6 +67,10 @@ export class Service extends EventEmitter implements Events {
         return !!this.context;
     }
 
+    public collectionPath(): string | null {
+        return this.context ? this.context.collectionPath : null;
+    }
+
     public getThumbnailPath(group: number, index: number): string {
         const context = this.context;
         if (!context)
