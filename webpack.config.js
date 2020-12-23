@@ -13,6 +13,7 @@ module.exports = [
         .withCss("index.css")
         .withReact()
         .withExternals(externals)
-        .asLibrary("umd2", "extension")
-        .to("web", pathBuild, "index.js"),
+        .asLibrary("umd", "extension")
+        .to("web", pathBuild, "index.js")
+        .build(),
 ];
