@@ -4,11 +4,12 @@ import {mdiEye} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
 import {Connected} from "./connected";
-import {service} from "./externals";
 
-import type {Similar} from "./service";
+import {Similar, Service, id as ServiceID} from "./service";
 
 interface Props {
+    services: {[ServiceID]: Service};
+
     file: string;
     directory: string;
 }
@@ -37,6 +38,7 @@ export class Similars extends React.PureComponent<Props, State> {
     }
 
     private startGetSimilars(directory: string, file: string) {
+        const service = this.props.services[ServiceID] as Service;
         if (service.connected() && this.state.enabled)
             service.requestPhashQuery(directory, file).then(response => {
                 // See if we won the write
@@ -62,6 +64,7 @@ export class Similars extends React.PureComponent<Props, State> {
     }
 
     private renderThumbnail(s: Similar): React.ReactNode {
+        const service = this.props.services[ServiceID] as Service;
         const url = service.getThumbnailPath(s.group, s.index);
         return <>
             <img src={url} alt="" />
@@ -97,6 +100,8 @@ export class Similars extends React.PureComponent<Props, State> {
     }
 
     render() {
+        const service = this.props.services[ServiceID] as Service;
+
         const {enabled} = this.state;
         const className = enabled
             ? "panel curator similars focus"
@@ -109,7 +114,9 @@ export class Similars extends React.PureComponent<Props, State> {
                         <Icon path={mdiEye} />
                     </button>
                 </div>
-                {enabled && <Connected>{this.renderContent}</Connected>}
+                {enabled && <Connected service={service}>
+                    {this.renderContent}
+                </Connected>}
             </span>
         </span>;
     }
@@ -117,4 +124,10 @@ export class Similars extends React.PureComponent<Props, State> {
     handleToggleEnabled(): void {
         this.setState(({enabled}) => ({enabled: !enabled}));
     }
+}
+
+export const Definition = {
+    id: "similars",
+    services: [ServiceID],
+    component: Similars,
 }

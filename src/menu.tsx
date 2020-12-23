@@ -3,9 +3,11 @@ import {mdiAlphaCBox, mdiPowerPlug, mdiPowerPlugOff} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
 import {Connected} from "./connected";
-import {service} from "./externals";
+import {Service, id as ServiceID} from "./service";
 
 interface Props {
+    [ServiceID]: Service;
+
     preferences: {};
     onSetPreferences(values: {}): void;
     
@@ -23,11 +25,12 @@ export class Menu extends React.PureComponent<Props> {
 
     render() {
         return <ul className="menu curator">
-            <Connected>{this.renderConnectionToggle}</Connected>
+            <Connected service={this.getService()}>{this.renderConnectionToggle}</Connected>
         </ul>;
     }
 
     handleToggleConnect(): void {
+        const service = this.getService();
         if (service.connected())
             service.disconnect();
         else
@@ -35,6 +38,8 @@ export class Menu extends React.PureComponent<Props> {
     }
 
     private renderConnectionToggle(connected: boolean): React.ReactNode {
+        const service = this.getService();
+
         let icon: string;
         let caption: string;
 
@@ -59,10 +64,16 @@ export class Menu extends React.PureComponent<Props> {
             </li>
         </>;
     }
+
+    private getService(): Service {
+        return this.props[ServiceID];
+    }
 }
 
 export const Definition = {
+    id: "connectivity",
     icon: mdiAlphaCBox,
     label: "Curator",
+    services: [ServiceID],
     component: Menu,
 };

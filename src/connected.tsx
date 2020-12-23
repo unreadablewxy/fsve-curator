@@ -1,8 +1,8 @@
 import React from "react";
-
-import {service} from "./externals";
+import {Service} from "./service";
 
 interface Props {
+    service: Service;
     children: (connected: boolean) => React.ReactNode;
 }
 
@@ -11,22 +11,29 @@ interface State {
 }
 
 export class Connected extends React.Component<Props, State> {
-    constructor(props: Props, ...forwarded: unknown[]) {
-        super(props, ...forwarded);
+    constructor(props: Props) {
+        super(props);
 
         this.state = {
-            connected: service.connected(),
+            connected: this.props.service.connected(),
         };
 
         this.handleConnect = this.handleConnect.bind(this);
     }
 
+    componentDidUpdate(p: Props): void {
+        if (p.service !== this.props.service) {
+            p.service.off("connect", this.handleConnect);
+            this.componentDidMount();
+        }
+    }
+
     componentDidMount(): void {
-        service.on("connect", this.handleConnect);
+        this.props.service.on("connect", this.handleConnect);
     }
 
     componentWillUnmount(): void {
-        service.off("connect", this.handleConnect);
+        this.props.service.off("connect", this.handleConnect);
     }
 
     render() {

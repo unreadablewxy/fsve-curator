@@ -27,6 +27,8 @@ const RequestHeaderSize = 8;
 
 const NotConnected = "Not connected to curator service";
 
+export const id = "de.unreadableco.fs-curator.service";
+
 export interface Similar {
     readonly group: number;
     readonly index: number;
@@ -49,15 +51,21 @@ interface Events {
 }
 
 export class Service extends EventEmitter implements Events {
+    static readonly shortName = "service";
+    static readonly dependencies = ["ipc", "reader"];
+
+    private readonly ipc: any;
+    private readonly reader: any;
+
     private context?: ConnectionContext;
 
     private readonly requests: Request[] = [];
 
-    constructor(
-        private readonly ipc: any,
-        private readonly reader: any,
-    ) {
+    constructor(services: any) {
         super();
+
+        this.ipc = services.ipc;
+        this.reader = services.reader;
 
         this.onData = this.onData.bind(this);
         this.onDisconnect = this.onDisconnect.bind(this);
