@@ -4,7 +4,7 @@ import {mdiEye} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
 import {Connected} from "./connected";
-
+import {Image} from "./image";
 import {Similar, Service, id as ServiceID} from "./service";
 
 interface Props {
@@ -26,6 +26,8 @@ function getFileId(directory: string, file: string): FileID {
 }
 
 export class Similars extends React.PureComponent<Props, State> {
+    readonly #forceUpdate = (): void => { this.forceUpdate(); };
+
     constructor(props: Props) {
         super(props);
         
@@ -62,13 +64,19 @@ export class Similars extends React.PureComponent<Props, State> {
         const file = names[p.browsing.focusedFile];
         if (this.state.loadedFile !== getFileId(directory, file))
             this.startGetSimilars(directory, file);
+
+        this.props.browsing.on("filefocus", this.#forceUpdate);
+    }
+
+    componentWillUnmount(): void {
+        this.props.browsing.off("filefocus", this.#forceUpdate);
     }
 
     private renderThumbnail(s: Similar): React.ReactNode {
         const service = this.props[ServiceID];
         const urls = service.getThumbnailPaths(s.group, s.index);
         return <>
-            <img srcSet={urls.join(",")} alt="" />
+            <Image paths={urls} />
             <span>{s.group}-{s.index} (&Delta;: {s.diff}/64)</span>
         </>;
     }
