@@ -16,8 +16,8 @@ interface Props {
 }
 
 export class Menu extends React.PureComponent<Props> {
-    constructor(props: Props, ...forwarded: unknown[]) {
-        super(props, ...forwarded);
+    constructor(props: Props) {
+        super(props);
 
         this.handleToggleConnect = this.handleToggleConnect.bind(this);
         this.renderConnectionToggle = this.renderConnectionToggle.bind(this);

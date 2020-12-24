@@ -8,10 +8,8 @@ import {Connected} from "./connected";
 import {Similar, Service, id as ServiceID} from "./service";
 
 interface Props {
-    services: {[ServiceID]: Service};
-
-    file: string;
-    directory: string;
+    [ServiceID]: Service;
+    browsing: any;
 }
 
 type FileID = string;
@@ -28,8 +26,8 @@ function getFileId(directory: string, file: string): FileID {
 }
 
 export class Similars extends React.PureComponent<Props, State> {
-    constructor(props: Props, ...forwarded: unknown[]) {
-        super(props, ...forwarded);
+    constructor(props: Props) {
+        super(props);
         
         this.state = {};
 
@@ -38,11 +36,13 @@ export class Similars extends React.PureComponent<Props, State> {
     }
 
     private startGetSimilars(directory: string, file: string) {
-        const service = this.props.services[ServiceID] as Service;
+        const service = this.props[ServiceID];
         if (service.connected() && this.state.enabled)
             service.requestPhashQuery(directory, file).then(response => {
                 // See if we won the write
-                if (file == this.props.file && directory == this.props.directory) {
+                const {path: currentDirectory, names} = this.props.browsing.files;
+                const currentFile = names[this.props.browsing.focusedFile];
+                if (file == currentFile && directory == currentDirectory) {
                     this.setState({
                         loadedFile: getFileId(directory, file),
                         similars: response,
@@ -58,16 +58,17 @@ export class Similars extends React.PureComponent<Props, State> {
     }
 
     componentDidUpdate(p: Props, s: State): void {
-        const {file, directory} = this.props;
+        const {path: directory, names} = p.browsing.files;
+        const file = names[p.browsing.focusedFile];
         if (this.state.loadedFile !== getFileId(directory, file))
             this.startGetSimilars(directory, file);
     }
 
     private renderThumbnail(s: Similar): React.ReactNode {
-        const service = this.props.services[ServiceID] as Service;
-        const url = service.getThumbnailPath(s.group, s.index);
+        const service = this.props[ServiceID];
+        const urls = service.getThumbnailPaths(s.group, s.index);
         return <>
-            <img src={url} alt="" />
+            <img srcSet={urls.join(",")} alt="" />
             <span>{s.group}-{s.index} (&Delta;: {s.diff}/64)</span>
         </>;
     }
@@ -79,7 +80,8 @@ export class Similars extends React.PureComponent<Props, State> {
                 <div>Please connect to a curator</div>
             </div>;
 
-        const {directory, file} = this.props;
+        const {path: directory, names} = this.props.browsing.files;
+        const file = names[this.props.browsing.focusedFile];
         if (getFileId(directory, file) !== this.state.loadedFile)
             return <div className="msg">Loading</div>;
 
@@ -100,7 +102,7 @@ export class Similars extends React.PureComponent<Props, State> {
     }
 
     render() {
-        const service = this.props.services[ServiceID] as Service;
+        const service = this.props[ServiceID];
 
         const {enabled} = this.state;
         const className = enabled
@@ -128,6 +130,7 @@ export class Similars extends React.PureComponent<Props, State> {
 
 export const Definition = {
     id: "similars",
-    services: [ServiceID],
+    path: "/stage",
+    services: [ServiceID, "browsing"],
     component: Similars,
 }
