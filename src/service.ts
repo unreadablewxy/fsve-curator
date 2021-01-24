@@ -1,4 +1,5 @@
 import {EventEmitter} from "events";
+import type {Socket} from "net";
 
 // UC/CP20/TSC>scm.uc/fs-curator/src/ipc/request.hpp::uc::ipc::Request
 
@@ -34,11 +35,6 @@ export interface Similar {
     readonly index: number;
     readonly diff: number;
 }
-
-interface Request {
-    ready: (buffer: Buffer) => void;
-    fail: (err: Error) => void;
-};
 
 type PathGenerator = (group: number, index: number) => string;
 
@@ -107,142 +103,27 @@ class ThumbnailPathGeneratorBuilder {
     }
 }
 
-interface ConnectionContext {
-    connection: any;
-    configPath: string;
-    collectionPath: string;
-    thumbnailPathGenerators: PathGenerator[];
+interface Request {
+    ready: (buffer: Buffer) => void;
+    fail: (err: Error) => void;
 }
 
-interface Events {
-    on(event: "connect", handler: (connected: boolean) => void): this;
-}
-
-export class Service extends EventEmitter implements Events {
-    static readonly shortName = "service";
-    static readonly dependencies = ["ipc", "reader"];
-
-    private readonly ipc: any;
-    private readonly reader: any;
-
-    private context?: ConnectionContext;
-
+class Connection {
     private readonly requests: Request[] = [];
 
-    constructor([ipc, reader]: any) {
-        super();
-
-        this.ipc = ipc;
-        this.reader = reader;
-
-        this.onData = this.onData.bind(this);
-        this.onDisconnect = this.onDisconnect.bind(this);
+    constructor(private readonly socket: Socket) {
+        this.socket.on("data", this.onData.bind(this));
     }
 
-    public connected(): boolean {
-        return !!this.context;
-    }
-
-    public collectionPath(): string | null {
-        return this.context ? this.context.collectionPath : null;
-    }
-
-    public getThumbnailPaths(group: number, index: number): string[] {
-        const context = this.context;
-        if (!context)
-            throw new Error(NotConnected);
-
-        const result = new Array<string>(context.thumbnailPathGenerators.length);
-        for (let n = result.length; n --> 0;)
-            result[n] = context.thumbnailPathGenerators[n](group, index);
-
-        return result;
-    }
-
-    public disconnect(): void {
-        if (this.context)
-            this.context.connection.close();
-    }
-
-    public connect(path: string): Promise<void> {
-        return new Promise(async (done, fail) => {
-            const newContext: Partial<ConnectionContext> = {};
-            newContext.connection = await this.ipc.connect(path);
-            newContext.connection
-                .on("data", this.onData)
-                .on("close", this.onDisconnect);
-
-            newContext.connection.request()
-                .addUInt32(Opcode.Config, 0)
-                .send();
-
-            const ready = async (buffer: Buffer): Promise<void> => {
-                [
-                    newContext.configPath,
-                    newContext.collectionPath,
-                ] = buffer.toString(TextEncoding, ResponseHeaderSize, buffer.length).split("\0");
-
-                this.context = newContext as ConnectionContext;
-
-                const builder = new ThumbnailPathGeneratorBuilder(
-                    this.reader.joinPath(newContext.collectionPath, "thumbnail"));
-
-                const generators = await this.reader.reduceTextFile(newContext.configPath,
-                    (out: Array<PathGenerator>, line: string) => {
-                        if (line) {
-                            if (line.startsWith('[')) {
-                                if (builder.buildable)
-                                    out.push(builder.build());
-                                else
-                                    builder.reset();
-                            } else
-                                builder.update(line);
-                        }
-                    },
-                    new Array<PathGenerator>());
-
-                // We build on the beginning of each section
-                if (builder.buildable)
-                    generators.push(builder.build());
-
-                newContext.thumbnailPathGenerators = generators;
-
-                this.emit("connect", true);
-                done();
-            };
-
+    sendAndReceive(request: any): Promise<Buffer> {
+        request.send(this.socket);
+        return new Promise((ready, fail) => {
             this.requests.push({ready, fail});
         });
     }
 
-    public requestPhashQuery(directory: string, file: string): Promise<Similar[]> {
-        const context = this.context;
-        if (!context)
-            return Promise.reject(new Error(NotConnected));
-
-        const CandidateLimit = 3;
-        return new Promise((done, fail) => {
-            const request = context.connection.request();
-            request.addUInt32(Opcode.Query, 0, CandidateLimit)
-                .addString("phash\0")
-                .addString(this.reader.joinPath(directory, file))
-                .setUInt32(4, request.fill() - RequestHeaderSize)
-                .send();
-
-            function ready(buffer: Buffer): void {
-                let result: Similar[] = [];
-                for (let read = ResponseHeaderSize; read < buffer.length; read += 12)
-                    result.push({
-                        group: buffer.readUInt32LE(read),
-                        index: buffer.readUInt32LE(read + 4),
-                        diff:  buffer.readUInt32LE(read + 8),
-                    });
-
-                done(result);
-            }
-
-            this.requests.push({ready, fail});
-        });
+    close() {
+        this.socket.destroy();
     }
 
     private onData(buffer: Buffer): void {
@@ -275,9 +156,132 @@ export class Service extends EventEmitter implements Events {
 
         fail(new Error(message));
     }
+}
 
-    private onDisconnect(error: boolean): void {
-        delete this.context;
+interface Session extends Connection {
+    configPath: string;
+    collectionPath: string;
+    thumbnailPathGenerators: PathGenerator[];
+}
+
+interface Events {
+    on(event: "connect", handler: (connected: boolean) => void): this;
+}
+
+export class Service extends EventEmitter implements Events {
+    static readonly shortName = "service";
+    static readonly dependencies = ["ipc", "reader"];
+
+    private readonly ipc: any;
+    private readonly reader: any;
+
+    private session?: Session;
+
+    constructor([ipc, reader]: any) {
+        super();
+
+        this.ipc = ipc;
+        this.reader = reader;
+
+        this.onDisconnect = this.onDisconnect.bind(this);
+    }
+
+    public connected(): boolean {
+        return !!this.session;
+    }
+
+    public collectionPath(): string | null {
+        return this.session ? this.session.collectionPath : null;
+    }
+
+    public getThumbnailPaths(group: number, index: number): string[] {
+        const context = this.session;
+        if (!context)
+            throw new Error(NotConnected);
+
+        const result = new Array<string>(context.thumbnailPathGenerators.length);
+        for (let n = result.length; n --> 0;)
+            result[n] = context.thumbnailPathGenerators[n](group, index);
+
+        return result;
+    }
+
+    public disconnect(): void {
+        if (this.session) {
+            this.session.close();
+            delete this.session;
+        }
+    }
+
+    public async connect(path: string): Promise<void> {
+        const socket = await this.ipc.connect(path);
+        const connection = new Connection(socket);
+
+        const request = this.ipc.createRequest().addUInt32(Opcode.Config, 0);
+        const buffer = await connection.sendAndReceive(request);
+
+        const [
+            configPath,
+            collectionPath,
+        ] = buffer.toString(TextEncoding, ResponseHeaderSize, buffer.length).split("\0");
+
+        const thumbRoot = this.reader.joinPath(collectionPath, "thumbnail");
+        const thumbPathGenBuilder = new ThumbnailPathGeneratorBuilder(thumbRoot);
+        const thumbPathGenerators = await this.reader.reduceTextFile(configPath,
+            (out: Array<PathGenerator>, line: string) => {
+                if (line) {
+                    if (line.startsWith('[')) {
+                        if (thumbPathGenBuilder.buildable)
+                            out.push(thumbPathGenBuilder.build());
+                        else
+                            thumbPathGenBuilder.reset();
+                    } else
+                        thumbPathGenBuilder.update(line);
+                }
+            },
+            new Array<PathGenerator>());
+
+        // We build on the beginning of each section
+        if (thumbPathGenBuilder.buildable)
+            thumbPathGenerators.push(thumbPathGenBuilder.build());
+
+        this.session = connection as Session;
+        this.session.configPath = configPath;
+        this.session.collectionPath = collectionPath;
+        this.session.thumbnailPathGenerators = thumbPathGenerators;
+
+        socket.on("close", this.onDisconnect);
+        this.emit("connect", true);
+    }
+
+    public async requestPhashQuery(directory: string, file: string): Promise<Similar[]> {
+        const session = this.session;
+        if (!session)
+            return Promise.reject(new Error(NotConnected));
+
+        const CandidateLimit = 3;
+
+        const request = this.ipc.createRequest();
+        request.addUInt32(Opcode.Query, 0, CandidateLimit)
+            .addString("phash\0")
+            .addString(this.reader.joinPath(directory, file))
+            .setUInt32(4, request.fill - RequestHeaderSize);
+
+        const buffer = await session.sendAndReceive(request);
+
+        const result: Similar[] = [];
+        for (let read = ResponseHeaderSize; read < buffer.length; read += 12)
+            result.push({
+                group: buffer.readUInt32LE(read),
+                index: buffer.readUInt32LE(read + 4),
+                diff:  buffer.readUInt32LE(read + 8),
+            });
+
+        return result;
+    }
+
+    private onDisconnect(): void {
+        delete this.session;
         this.emit("connect", false);
     }
 }
