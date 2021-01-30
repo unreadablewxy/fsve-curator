@@ -3,7 +3,6 @@ import React from "react";
 import {mdiEye} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
-import {Connected} from "./connected";
 import {Image} from "./image";
 import {Similar, Service, id as ServiceID} from "./service";
 
@@ -28,6 +27,10 @@ function getFileId(directory: string, file: string): FileID {
 export class Similars extends React.PureComponent<Props, State> {
     readonly #forceUpdate = (): void => { this.forceUpdate(); };
 
+    private get service(): Service {
+        return this.props[ServiceID];
+    }
+
     constructor(props: Props) {
         super(props);
         
@@ -38,8 +41,8 @@ export class Similars extends React.PureComponent<Props, State> {
     }
 
     private startGetSimilars(directory: string, file: string) {
-        const service = this.props[ServiceID];
-        if (service.connected() && this.state.enabled)
+        const service = this.service;
+        if (service.connected && this.state.enabled)
             service.requestPhashQuery(directory, file).then(response => {
                 // See if we won the write
                 const {path: currentDirectory, names} = this.props.browsing.files;
@@ -68,7 +71,12 @@ export class Similars extends React.PureComponent<Props, State> {
         this.props.browsing.on("filefocus", this.#forceUpdate);
     }
 
+    componentDidMount(): void {
+        this.service.on("connect", this.#forceUpdate);
+    }
+
     componentWillUnmount(): void {
+        this.service.off("connect", this.#forceUpdate);
         this.props.browsing.off("filefocus", this.#forceUpdate);
     }
 
@@ -124,9 +132,7 @@ export class Similars extends React.PureComponent<Props, State> {
                         <Icon path={mdiEye} />
                     </button>
                 </div>
-                {enabled && <Connected service={service}>
-                    {this.renderContent}
-                </Connected>}
+                {enabled && this.renderContent(service.connected)}
             </span>
         </span>;
     }

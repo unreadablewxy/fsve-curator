@@ -3,7 +3,6 @@ import React from "react";
 import {mdiAlphaCBox, mdiPowerPlug, mdiPowerPlugOff} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
-import {Connected} from "./connected";
 import {Service, id as ServiceID} from "./service";
 
 interface Props {
@@ -17,29 +16,27 @@ interface Props {
 }
 
 export class Menu extends React.PureComponent<Props> {
+    private get service(): Service {
+        return this.props[ServiceID];
+    }
+
     constructor(props: Props) {
         super(props);
 
         this.handleToggleConnect = this.handleToggleConnect.bind(this);
-        this.renderConnectionToggle = this.renderConnectionToggle.bind(this);
+    }
+
+    componentDidMount(): void {
+        this.service.on("connect", this.handleConnect);
+    }
+
+    componentWillUnmount(): void {
+        this.service.off("connect", this.handleConnect);
     }
 
     render() {
-        return <ul className="menu curator">
-            <Connected service={this.getService()}>{this.renderConnectionToggle}</Connected>
-        </ul>;
-    }
-
-    handleToggleConnect(): void {
-        const service = this.getService();
-        if (service.connected())
-            service.disconnect();
-        else
-            service.connect("/run/fs-curator/socket");
-    }
-
-    private renderConnectionToggle(connected: boolean): React.ReactNode {
-        const service = this.getService();
+        const service = this.service;
+        const connected = service.connected;
 
         let icon: string;
         let caption: string;
@@ -52,7 +49,7 @@ export class Menu extends React.PureComponent<Props> {
             caption = "Connect";
         }
 
-        return <>
+        return <ul className="menu curator">
             <li>
                 <div>{connected ? "Connected, using collection:" : "Not Connected"}</div>
             </li>
@@ -63,11 +60,19 @@ export class Menu extends React.PureComponent<Props> {
                     <span>{caption}</span>
                 </button>
             </li>
-        </>;
+        </ul>;
     }
 
-    private getService(): Service {
-        return this.props[ServiceID];
+    handleConnect = () => {
+        this.forceUpdate();
+    };
+
+    handleToggleConnect(): void {
+        const service = this.service;
+        if (service.connected)
+            service.disconnect();
+        else
+            service.connect("/run/fs-curator/socket");
     }
 }
 

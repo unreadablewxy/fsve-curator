@@ -186,7 +186,7 @@ export class Service extends EventEmitter implements Events {
         this.onDisconnect = this.onDisconnect.bind(this);
     }
 
-    public connected(): boolean {
+    public get connected(): boolean {
         return !!this.session;
     }
 
