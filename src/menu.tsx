@@ -1,3 +1,4 @@
+import "./menu.sass";
 import React from "react";
 import {mdiAlphaCBox, mdiPowerPlug, mdiPowerPlugOff} from "@mdi/js";
 import {Icon} from "@mdi/react";
