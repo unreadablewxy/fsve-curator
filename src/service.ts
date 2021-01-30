@@ -206,6 +206,13 @@ export class Service extends EventEmitter implements Events {
         return result;
     }
 
+    public getPath(group: number, index: number): string {
+        if (!this.session)
+            return "";
+
+        return `${this.session.collectionPath}/by-order/${group}/${index}`;
+    }
+
     public disconnect(): void {
         if (this.session) {
             this.session.close();

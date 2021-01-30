@@ -1,6 +1,6 @@
 import "./similars.sass"
 import React from "react";
-import {mdiEye} from "@mdi/js";
+import {mdiEye, mdiCompare} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
 import {Image} from "./image";
@@ -9,12 +9,14 @@ import {Similar, Service, id as ServiceID} from "./service";
 interface Props {
     [ServiceID]: Service;
     browsing: any;
+
+    onNavigate: (path: string, state?: unknown) => void;
 }
 
 type FileID = string;
 
 interface State {
-    enabled?: boolean;
+    active?: boolean;
     loadedFile?: FileID;
     similars?: Similar[];
     fault?: string;
@@ -42,7 +44,7 @@ export class Similars extends React.PureComponent<Props, State> {
 
     private startGetSimilars(directory: string, file: string) {
         const service = this.service;
-        if (service.connected && this.state.enabled)
+        if (service.connected && this.state.active)
             service.requestPhashQuery(directory, file).then(response => {
                 // See if we won the write
                 const {path: currentDirectory, names} = this.props.browsing.files;
@@ -62,17 +64,16 @@ export class Similars extends React.PureComponent<Props, State> {
             });
     }
 
-    componentDidUpdate(p: Props, s: State): void {
+    componentDidUpdate(p: Props): void {
         const {path: directory, names} = p.browsing.files;
         const file = names[p.browsing.focusedFile];
         if (this.state.loadedFile !== getFileId(directory, file))
             this.startGetSimilars(directory, file);
-
-        this.props.browsing.on("filefocus", this.#forceUpdate);
     }
 
     componentDidMount(): void {
         this.service.on("connect", this.#forceUpdate);
+        this.props.browsing.on("filefocus", this.#forceUpdate);
     }
 
     componentWillUnmount(): void {
@@ -85,7 +86,12 @@ export class Similars extends React.PureComponent<Props, State> {
         const urls = service.getThumbnailPaths(s.group, s.index);
         return <>
             <Image paths={urls} />
-            <span>{s.group}-{s.index} (&Delta;: {s.diff}/64)</span>
+            <div className="label">
+                <button title="Compare" onClick={() => this.handleCompare(s)}>
+                    <Icon path={mdiCompare} />
+                </button>
+                <span>{s.group}-{s.index} (&Delta;: {s.diff}/64)</span>
+            </div>
         </>;
     }
 
@@ -117,28 +123,36 @@ export class Similars extends React.PureComponent<Props, State> {
         return <div>No results</div>;
     }
 
-    render() {
+    render(): React.ReactNode {
         const service = this.props[ServiceID];
 
-        const {enabled} = this.state;
-        const className = enabled
+        const {active} = this.state;
+        const className = active
             ? "panel curator similars focus"
             : "panel curator similars";
 
         return <span className={className}>
             <span className="background">
                 <div>
-                    <button onClick={this.handleToggleEnabled}>
+                    <button className="handle" title="Similars" onClick={this.handleToggleEnabled}>
                         <Icon path={mdiEye} />
                     </button>
                 </div>
-                {enabled && this.renderContent(service.connected)}
+                {active && this.renderContent(service.connected)}
             </span>
         </span>;
     }
 
     handleToggleEnabled(): void {
-        this.setState(({enabled}) => ({enabled: !enabled}));
+        this.setState(({active}) => ({active: !active}));
+    }
+
+    handleCompare(s: Similar): void {
+        const browsing = this.props.browsing;
+        const {path: directory, names} = browsing.files;
+        const file = names[browsing.focusedFile];
+        const left = this.service.getPath(s.group, s.index);
+        this.props.onNavigate(`/compare?left=${left}&right=${directory}/${file}`);
     }
 }
 

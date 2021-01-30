@@ -21,8 +21,7 @@ $space-default: 0.6em
         display: inline-flex
 
     button
-        padding: $space-narrow
-        margin: 0 $space-narrow
+        padding: $space-narrow $space-narrow 0 $space-narrow
 
         &::active
             background-color: transparent
@@ -46,6 +45,18 @@ $space-default: 0.6em
 
     img
         object-fit: scale-down
+
+    .handle
+        margin: 0 $space-narrow
+
+    .label
+        line-height: 2.2em
+        overflow: hidden
+        text-overflow: ellipsis
+
+        > button
+            float: right
+            margin-left: $space-default
 
     .msg
         padding: $space-narrow $space-default
