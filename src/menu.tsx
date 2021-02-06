@@ -3,15 +3,19 @@ import React from "react";
 import {mdiAlphaCBox, mdiPowerPlug, mdiPowerPlugOff} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
+import {defaultMaxDiff, maxDiffPrefId} from "./constant";
 import {Service, id as ServiceID} from "./service";
 
-interface Props {
+interface PreferenceMappedProps {
+    maxDiff: number;
+}
+
+interface Props extends PreferenceMappedProps {
     [ServiceID]: Service;
 
-    preferences: {};
     onSetPreferences(values: {}): void;
-    
-    localPreferences: {};
+
+    localPreferences: {[k in keyof PreferenceMappedProps]?: boolean};
     onTogglePreferenceScope(name: string): void;
 }
 
@@ -60,11 +64,26 @@ export class Menu extends React.PureComponent<Props> {
                     <span>{caption}</span>
                 </button>
             </li>
+            <li>
+                <label>
+                    <div>Max PHash Diff</div>
+                    <input type="text" size={1}
+                        value={this.props.maxDiff}
+                        onChange={this.handleSetMaxDiff}
+                    />
+                </label>
+            </li>
         </ul>;
     }
 
     handleConnect = () => {
         this.forceUpdate();
+    };
+
+    handleSetMaxDiff = (ev: React.ChangeEvent<HTMLInputElement>) => {
+        this.props.onSetPreferences({
+            maxDiff: parseInt(ev.target.value),
+        });
     };
 
     handleToggleConnect(): void {
@@ -82,4 +101,9 @@ export const Definition = {
     label: "Curator",
     services: [ServiceID],
     component: Menu,
+    selectPreferences: ({
+        [maxDiffPrefId]: maxDiff,
+    }): PreferenceMappedProps => ({
+        maxDiff: maxDiff || defaultMaxDiff,
+    }),
 };

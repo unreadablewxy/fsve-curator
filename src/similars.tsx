@@ -3,10 +3,15 @@ import React from "react";
 import {mdiEye, mdiCompare} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
+import {defaultMaxDiff, maxDiffPrefId} from "./constant";
 import {Image} from "./image";
 import {Similar, Service, id as ServiceID} from "./service";
 
-interface Props {
+interface PreferenceMappedProps {
+    maxDiff: number;
+}
+
+interface Props extends PreferenceMappedProps {
     [ServiceID]: Service;
     browsing: any;
 
@@ -112,13 +117,19 @@ export class Similars extends React.PureComponent<Props, State> {
                 <h1>Error</h1>
                 <div>{this.state.fault}</div>
             </div>;
+
         
-        if (this.state.similars)
-            return <ul>
-                {this.state.similars.map(s => <li key={`${s.group}/${s.index}`}>
-                    {this.renderThumbnail(s)}
-                </li>)}
-            </ul>;
+        if (this.state.similars) {
+            const similars = this.state.similars.filter(
+                ({diff}) => diff < this.props.maxDiff);
+
+            if (similars.length)
+                return <ul>
+                    {similars.map(s => <li key={`${s.group}/${s.index}`}>
+                        {this.renderThumbnail(s)}
+                    </li>)}
+                </ul>;
+        }
 
         return <div>No results</div>;
     }
@@ -161,4 +172,9 @@ export const Definition = {
     path: "/stage",
     services: [ServiceID, "browsing"],
     component: Similars,
+    selectPreferences: ({
+        [maxDiffPrefId]: maxDiff,
+    }): PreferenceMappedProps => ({
+        maxDiff: maxDiff || defaultMaxDiff,
+    }),
 }
