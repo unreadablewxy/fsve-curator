@@ -50,56 +50,80 @@ function createThumbnailPathGenerator(
 }
 
 class ThumbnailPathGeneratorBuilder {
-    readonly #basePath: string;
+    buildable: boolean;
 
-    get buildable(): boolean {
-        return this.#buildable;
-    }
+    private format: string;
+    private aspect: string;
+    private resolution: string;
 
-    #format: string;
-    #aspect: string;
-    #resolution: string;
-    #buildable: boolean;
-
-    constructor(basepath: string) {
-        this.#basePath = basepath;
+    constructor(private readonly basePath: string) {
         this.reset();
     }
 
-    update(line: string) {
-        const assignment = line.indexOf("=");
-        if (assignment < 1)
-            return;
-
-        const value = line.slice(assignment + 1).trim();
-
-        switch (line.slice(0, assignment).trim()) {
-            case "thumbnail_path":          this.#buildable = true; break;
-            case "thumbnail_resolution":    this.#resolution = `p${value}`; break;
-            case "thumbnail_aspect":        this.#aspect = `-${value}`; break;
-            case "thumbnail_format":
-                if (value.toLowerCase().startsWith("jpeg"))
-                    this.#format = `q${value.slice(4) || "92"}.jpeg`;
-                else
-                    this.#format = `.${value}`;
-                break;
+    update(variable: string, value: string) {
+        switch (variable) {
+        case "thumbnail_path":          this.buildable = true; break;
+        case "thumbnail_resolution":    this.resolution = `p${value}`; break;
+        case "thumbnail_aspect":        this.aspect = `-${value}`; break;
+        case "thumbnail_format":
+            if (value.toLowerCase().startsWith("jpeg"))
+                this.format = `q${value.slice(4) || "92"}.jpeg`;
+            else
+                this.format = `.${value}`;
+            break;
         }
     }
 
     reset() {
-        this.#format = ".png";
-        this.#aspect = "";
-        this.#resolution = "";
-        this.#buildable = false;
+        this.format = ".png";
+        this.aspect = "";
+        this.resolution = "";
+        this.buildable = false;
     }
 
     build(): PathGenerator {
         try {
             return createThumbnailPathGenerator(
-                this.#basePath, this.#aspect, this.#resolution, this.#format);
+                this.basePath, this.aspect, this.resolution, this.format);
         } finally {
             this.reset();
         }
+    }
+}
+
+export interface Hopper {
+    name: string;
+    path: string;
+}
+
+class HopperBuilder {
+    get buildable(): boolean {
+        return Boolean(this.product.path && this.product.name);
+    }
+
+    private product: Partial<Hopper>;
+
+    constructor(private readonly separator: string) {
+        this.product = {};
+    }
+    
+    reset() {
+        this.product = {};
+    }
+
+    update(variable: string, value: string) {
+        if (variable !== "path") return;
+
+        this.product.path = value;
+
+        const separatorIndex = value.lastIndexOf(this.separator);
+        this.product.name = value.slice(separatorIndex + 1);
+    }
+
+    build(): Hopper {
+        const product = this.product as Hopper;
+        this.reset();
+        return product;
     }
 }
 
@@ -162,6 +186,7 @@ interface Session extends Connection {
     configPath: string;
     collectionPath: string;
     thumbnailPathGenerators: PathGenerator[];
+    hoppers: Hopper[];
 }
 
 interface Events {
@@ -190,8 +215,12 @@ export class Service extends EventEmitter implements Events {
         return !!this.session;
     }
 
-    public collectionPath(): string | null {
-        return this.session ? this.session.collectionPath : null;
+    public get hoppers(): Hopper[] | undefined {
+        return this.session?.hoppers;
+    }
+
+    public get collectionPath(): string | undefined {
+        return this.session?.collectionPath;
     }
 
     public getThumbnailPaths(group: number, index: number): string[] {
@@ -220,6 +249,65 @@ export class Service extends EventEmitter implements Events {
         }
     }
 
+    private async parseConfig(
+        configPath: string,
+        collectionPath: string,
+    ): Promise<Partial<Session>> {
+        const thumbRoot = this.reader.joinPath(collectionPath, "thumbnail");
+        const thumbPathGenBuilder = new ThumbnailPathGeneratorBuilder(thumbRoot);
+        const hopperBuilder = new HopperBuilder(this.reader.joinPath("a", "b")[1]);
+        let section = "";
+
+        const patch = await this.reader.reduceTextFile(configPath,
+            (out: Session, line: string) => {
+                if (!line) return;
+
+                if (line.startsWith('[')) {
+                    switch (section) {
+                    case "[hopper]":
+                        if (hopperBuilder.buildable)
+                            out.hoppers.push(hopperBuilder.build());
+                        else
+                            hopperBuilder.reset();
+                            
+                        break;
+
+                    case "[store]":
+                        if (thumbPathGenBuilder.buildable)
+                            out.thumbnailPathGenerators.push(thumbPathGenBuilder.build());
+                        else
+                            thumbPathGenBuilder.reset();
+
+                        break;
+                    }
+
+                    section = line;
+                } else {
+                    const assignment = line.indexOf("=");
+                    if (assignment < 1)
+                        return;
+
+                    const variable = line.slice(0, assignment).trim();
+                    const value = line.slice(assignment + 1).trim();
+
+                    thumbPathGenBuilder.update(variable, value);
+                    hopperBuilder.update(variable, value);
+                }
+            },
+            {
+                configPath,
+                collectionPath,
+                hoppers: [],
+                thumbnailPathGenerators: [],
+            });
+
+        // We build on the beginning of each section
+        if (thumbPathGenBuilder.buildable)
+            patch.thumbnailPathGenerators.push(thumbPathGenBuilder.build());
+
+        return patch;
+    }
+
     public async connect(path: string): Promise<void> {
         const socket = await this.ipc.connect(path);
         const connection = new Connection(socket);
@@ -232,30 +320,8 @@ export class Service extends EventEmitter implements Events {
             collectionPath,
         ] = buffer.toString(TextEncoding, ResponseHeaderSize, buffer.length).split("\0");
 
-        const thumbRoot = this.reader.joinPath(collectionPath, "thumbnail");
-        const thumbPathGenBuilder = new ThumbnailPathGeneratorBuilder(thumbRoot);
-        const thumbPathGenerators = await this.reader.reduceTextFile(configPath,
-            (out: Array<PathGenerator>, line: string) => {
-                if (line) {
-                    if (line.startsWith('[')) {
-                        if (thumbPathGenBuilder.buildable)
-                            out.push(thumbPathGenBuilder.build());
-                        else
-                            thumbPathGenBuilder.reset();
-                    } else
-                        thumbPathGenBuilder.update(line);
-                }
-            },
-            new Array<PathGenerator>());
-
-        // We build on the beginning of each section
-        if (thumbPathGenBuilder.buildable)
-            thumbPathGenerators.push(thumbPathGenBuilder.build());
-
-        this.session = connection as Session;
-        this.session.configPath = configPath;
-        this.session.collectionPath = collectionPath;
-        this.session.thumbnailPathGenerators = thumbPathGenerators;
+        const sessionPatch = await this.parseConfig(configPath, collectionPath);
+        this.session = Object.assign(connection as Session, sessionPatch);
 
         socket.on("close", this.onDisconnect);
         this.emit("connect", true);
