@@ -12,13 +12,12 @@ $space-default: 0.6em
     left: 0
 
     .background
-        display: inline-flex
-        flex-direction: column
+        display: inline-block
         max-height: 90vh
         max-width: 30vw
 
-    &.focus .background > ul
-        display: inline-flex
+    &.focus .results
+        display: block
 
     button
         padding: $space-narrow $space-narrow 0 $space-narrow
@@ -27,12 +26,10 @@ $space-default: 0.6em
             background-color: transparent
 
     ul, li, img
-        flex-shrink: 1
         min-height: 0
 
     ul, li
         padding: 0
-        flex-direction: column
 
     ul
         list-style: none
@@ -40,23 +37,50 @@ $space-default: 0.6em
         margin: 0
 
     li
-        display: inline-flex
-        margin: $space-narrow $space-narrow 0 $space-narrow
+        margin: 0 $space-narrow $space-narrow $space-narrow
 
     img
+        display: block
         object-fit: scale-down
 
     .handle
         margin: 0 $space-narrow
 
-    .label
-        line-height: 2.2em
-        overflow: hidden
-        text-overflow: ellipsis
+    .results > li
+        position: relative
 
-        > button
-            float: right
-            margin-left: $space-default
+    .label
+        display: flex
+        flex-direction: row
+        position: absolute
+        bottom: 0
+        left: 0
+        right: 0
+
+        > div
+            height: 2em
+
+            &:first-child
+                display: inline-block
+                flex: 1
+                min-width: 0
+
+            &:last-child
+                background-color: rgba(26, 26, 26, 0.8)
+
+            > span
+                display: inline-block
+                max-width: 100%
+                overflow: hidden
+                text-overflow: ellipsis
+                line-height: 2em
+                padding: 0 $space-default
+                background-color: rgba(26, 26, 26, 0.8)
+                white-space: nowrap
+
+
+            > button
+                width: 2em
 
     .msg
         padding: $space-narrow $space-default

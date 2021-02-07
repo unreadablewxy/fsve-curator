@@ -89,15 +89,19 @@ export class Similars extends React.PureComponent<Props, State> {
     private renderThumbnail(s: Similar): React.ReactNode {
         const service = this.props[ServiceID];
         const urls = service.getThumbnailPaths(s.group, s.index);
-        return <>
+        return <li key={`${s.group}/${s.index}`}>
             <Image paths={urls} />
             <div className="label">
-                <button title="Compare" onClick={() => this.handleCompare(s)}>
-                    <Icon path={mdiCompare} />
-                </button>
-                <span>{s.group}-{s.index} (&Delta;: {s.diff}/64)</span>
+                <div>
+                    <span>{s.group}-{s.index} (&Delta;: {s.diff}/64)</span>
+                </div>
+                <div>
+                    <button title="Compare" onClick={() => this.handleCompare(s)}>
+                        <Icon path={mdiCompare} />
+                    </button>
+                </div>
             </div>
-        </>;
+        </li>;
     }
 
     private renderContent(connected: boolean): React.ReactNode {
@@ -124,11 +128,7 @@ export class Similars extends React.PureComponent<Props, State> {
                 ({diff}) => diff < this.props.maxDiff);
 
             if (similars.length)
-                return <ul>
-                    {similars.map(s => <li key={`${s.group}/${s.index}`}>
-                        {this.renderThumbnail(s)}
-                    </li>)}
-                </ul>;
+                return <ul className="results">{similars.map(s => this.renderThumbnail(s))}</ul>;
         }
 
         return <div>No results</div>;
@@ -142,16 +142,16 @@ export class Similars extends React.PureComponent<Props, State> {
             ? "panel curator similars focus"
             : "panel curator similars";
 
-        return <span className={className}>
-            <span className="background">
+        return <div className={className}>
+            <div className="background">
                 <div>
                     <button className="handle" title="Similars" onClick={this.handleToggleEnabled}>
                         <Icon path={mdiEye} />
                     </button>
                 </div>
                 {active && this.renderContent(service.connected)}
-            </span>
-        </span>;
+            </div>
+        </div>;
     }
 
     handleToggleEnabled(): void {
