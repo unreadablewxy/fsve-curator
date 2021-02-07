@@ -5,6 +5,7 @@ import {Icon} from "@mdi/react";
 
 import {defaultMaxDiff, maxDiffPrefId} from "./constant";
 import {Image} from "./image";
+import {NoConnection} from "./no-connection";
 import {Similar, Service, id as ServiceID} from "./service";
 
 interface PreferenceMappedProps {
@@ -106,10 +107,7 @@ export class Similars extends React.PureComponent<Props, State> {
 
     private renderContent(connected: boolean): React.ReactNode {
         if (!connected)
-            return <div className="notice warning">
-                <h1>No Curator</h1>
-                <div>Please connect to a curator</div>
-            </div>;
+            return NoConnection;
 
         const {path: directory, names} = this.props.browsing.files;
         const file = names[this.props.browsing.focusedFile];

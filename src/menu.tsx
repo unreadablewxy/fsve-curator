@@ -1,10 +1,10 @@
 import "./menu.sass";
 import React from "react";
-import {mdiAlphaCBox, mdiPowerPlug, mdiPowerPlugOff} from "@mdi/js";
+import {mdiAlphaCBox, mdiChevronRight, mdiPowerPlug, mdiPowerPlugOff} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
 import {defaultMaxDiff, maxDiffPrefId} from "./constant";
-import {Service, id as ServiceID} from "./service";
+import {Service, id as ServiceID, Hopper} from "./service";
 
 interface PreferenceMappedProps {
     maxDiff: number;
@@ -24,18 +24,21 @@ export class Menu extends React.PureComponent<Props> {
         return this.props[ServiceID];
     }
 
-    constructor(props: Props) {
-        super(props);
-
-        this.handleToggleConnect = this.handleToggleConnect.bind(this);
-    }
-
     componentDidMount(): void {
         this.service.on("connect", this.handleConnect);
     }
 
     componentWillUnmount(): void {
         this.service.off("connect", this.handleConnect);
+    }
+
+    private renderHopper({name, path}: Hopper) {
+        return <li key={path}>
+            <button onClick={() => this.handleOpenHopper(name)}>
+                <span>{name}</span>
+                <Icon path={mdiChevronRight} />
+            </button>
+        </li>;
     }
 
     render() {
@@ -55,16 +58,6 @@ export class Menu extends React.PureComponent<Props> {
 
         return <ul className="menu curator">
             <li>
-                <div>{connected ? "Connected, using collection:" : "Not Connected"}</div>
-            </li>
-            {connected && <li className="textual">{service.collectionPath()}</li>}
-            <li>
-                <button className="toggle" onClick={this.handleToggleConnect}>
-                    <Icon path={icon} />
-                    <span>{caption}</span>
-                </button>
-            </li>
-            <li>
                 <label>
                     <div>Max PHash Diff</div>
                     <input type="text" size={1}
@@ -73,11 +66,33 @@ export class Menu extends React.PureComponent<Props> {
                     />
                 </label>
             </li>
+            {connected
+                ? <>
+                    <li className="textual">Connected, using collection:</li>
+                    <li className="textual">{service.collectionPath}</li>
+                </>
+                : <li className="textual">Not Connected</li>}
+            <li>
+                <button className="toggle" onClick={this.handleToggleConnect}>
+                    <Icon path={icon} />
+                    <span>{caption}</span>
+                </button>
+            </li>
+            {connected && <li className="hoppers">
+                <label>Hoppers</label>
+                <ul>
+                    {service.hoppers?.map(h => this.renderHopper(h))}
+                </ul>
+            </li>}
         </ul>;
     }
 
     handleConnect = () => {
         this.forceUpdate();
+    };
+
+    handleOpenHopper = (name: string) => {
+        // TODO
     };
 
     handleSetMaxDiff = (ev: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,13 +101,13 @@ export class Menu extends React.PureComponent<Props> {
         });
     };
 
-    handleToggleConnect(): void {
+    handleToggleConnect = () => {
         const service = this.service;
         if (service.connected)
             service.disconnect();
         else
             service.connect("/run/fs-curator/socket");
-    }
+    };
 }
 
 export const Definition = {
