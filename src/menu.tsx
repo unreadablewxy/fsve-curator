@@ -13,6 +13,8 @@ interface PreferenceMappedProps {
 interface Props extends PreferenceMappedProps {
     [ServiceID]: Service;
 
+    onNavigate: (path: string, state?: unknown) => void;
+
     onSetPreferences(values: {}): void;
 
     localPreferences: {[k in keyof PreferenceMappedProps]?: boolean};
@@ -92,7 +94,7 @@ export class Menu extends React.PureComponent<Props> {
     };
 
     handleOpenHopper = (name: string) => {
-        // TODO
+        this.props.onNavigate(`/fs-curator/conflicts/${name}`);
     };
 
     handleSetMaxDiff = (ev: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,3 +1,4 @@
+import {Definition as ConflictsDefinition} from "./conflicts";
 import {Definition as MenuDefinition} from "./menu";
 import {Definition as SimilarsDefinition} from "./similars";
 import {Service} from "./service";
@@ -18,4 +19,8 @@ export const extras = [
 
 export const services = [
     Service,
+];
+
+export const modes = [
+    ConflictsDefinition,
 ];
