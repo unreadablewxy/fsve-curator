@@ -1,6 +1,8 @@
 import {EventEmitter} from "events";
 import type {Socket} from "net";
 
+import {createParser} from "./ini";
+
 // UC/CP20/TSC>scm.uc/fs-curator/src/ipc/request.hpp::uc::ipc::Request
 
 enum Opcode /*: uint32_t */ {
@@ -50,17 +52,18 @@ function createThumbnailPathGenerator(
 }
 
 class ThumbnailPathGeneratorBuilder {
-    buildable: boolean;
-
+    private buildable: boolean;
     private format: string;
     private aspect: string;
     private resolution: string;
+
+    public instances = new Array<PathGenerator>();
 
     constructor(private readonly basePath: string) {
         this.reset();
     }
 
-    update(variable: string, value: string) {
+    onAssignment(variable: string, value: string) {
         switch (variable) {
         case "thumbnail_path":          this.buildable = true; break;
         case "thumbnail_resolution":    this.resolution = `p${value}`; break;
@@ -72,6 +75,13 @@ class ThumbnailPathGeneratorBuilder {
                 this.format = `.${value}`;
             break;
         }
+    }
+
+    onSectionEnd() {
+        if (this.buildable)
+            this.instances.push(this.build());
+        else
+            this.reset();
     }
 
     reset() {
@@ -97,11 +107,13 @@ export interface Hopper {
 }
 
 class HopperBuilder {
-    get buildable(): boolean {
+    private get buildable(): boolean {
         return Boolean(this.product.path && this.product.name);
     }
 
     private product: Partial<Hopper>;
+
+    public instances = new Array<Hopper>();
 
     constructor(private readonly separator: string) {
         this.product = {};
@@ -111,7 +123,7 @@ class HopperBuilder {
         this.product = {};
     }
 
-    update(variable: string, value: string) {
+    onAssignment(variable: string, value: string) {
         if (variable !== "path") return;
 
         this.product.path = value;
@@ -120,7 +132,14 @@ class HopperBuilder {
         this.product.name = value.slice(separatorIndex + 1);
     }
 
-    build(): Hopper {
+    onSectionEnd() {
+        if (this.buildable)
+            this.instances.push(this.build());
+        else
+            this.reset();
+    }
+
+    private build(): Hopper {
         const product = this.product as Hopper;
         this.reset();
         return product;
@@ -256,56 +275,22 @@ export class Service extends EventEmitter implements Events {
         const thumbRoot = this.reader.joinPath(collectionPath, "thumbnail");
         const thumbPathGenBuilder = new ThumbnailPathGeneratorBuilder(thumbRoot);
         const hopperBuilder = new HopperBuilder(this.reader.joinPath("a", "b")[1]);
-        let section = "";
+        
+        const parseIniLine = createParser().
+            with("hopper", hopperBuilder).
+            with("store", thumbPathGenBuilder);
 
-        const patch = await this.reader.reduceTextFile(configPath,
-            (out: Session, line: string) => {
-                if (!line) return;
+        await this.reader.reduceTextFile(configPath,
+            (_: null, line: string) => parseIniLine(line));
 
-                if (line.startsWith('[')) {
-                    switch (section) {
-                    case "[hopper]":
-                        if (hopperBuilder.buildable)
-                            out.hoppers.push(hopperBuilder.build());
-                        else
-                            hopperBuilder.reset();
-                            
-                        break;
+        parseIniLine("\0");
 
-                    case "[store]":
-                        if (thumbPathGenBuilder.buildable)
-                            out.thumbnailPathGenerators.push(thumbPathGenBuilder.build());
-                        else
-                            thumbPathGenBuilder.reset();
-
-                        break;
-                    }
-
-                    section = line;
-                } else {
-                    const assignment = line.indexOf("=");
-                    if (assignment < 1)
-                        return;
-
-                    const variable = line.slice(0, assignment).trim();
-                    const value = line.slice(assignment + 1).trim();
-
-                    thumbPathGenBuilder.update(variable, value);
-                    hopperBuilder.update(variable, value);
-                }
-            },
-            {
-                configPath,
-                collectionPath,
-                hoppers: [],
-                thumbnailPathGenerators: [],
-            });
-
-        // We build on the beginning of each section
-        if (thumbPathGenBuilder.buildable)
-            patch.thumbnailPathGenerators.push(thumbPathGenBuilder.build());
-
-        return patch;
+        return {
+            configPath,
+            collectionPath,
+            hoppers: hopperBuilder.instances,
+            thumbnailPathGenerators: thumbPathGenBuilder.instances,
+        };
     }
 
     public async connect(path: string): Promise<void> {

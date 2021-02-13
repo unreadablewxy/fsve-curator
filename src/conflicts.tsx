@@ -8,6 +8,7 @@ import {Icon} from "@mdi/react";
 import {NoConnection} from "./no-connection";
 
 import {Service, id as ServiceID} from "./service";
+import { createParser } from "./ini";
 
 interface PathProps {
     hopper?: string;
@@ -22,6 +23,21 @@ interface Conflict {
     file: string;
     other: string;
     kind: string;
+}
+
+class ConflictsBuilder {
+    readonly instances = new Array<Conflict>();
+
+    onAssignment(identifier: string, value: string): void {
+        const parts = value.trim().split(" ");
+        this.instances.push({
+            file: identifier.trim(),
+            kind: parts[0],
+            other: parts[parts.length - 1],
+        });
+    }
+
+    onSectionEnd(): void {}
 }
 
 type HaltedImport = {
@@ -58,31 +74,20 @@ export class Conflicts extends React.PureComponent<Props, State> {
     handleRefreshHalted = async (index: number) => {
         const {name} = this.state.halted[index];
 
-        let inConflicts = false;
+        const conflict = new ConflictsBuilder();
+        const parseIniLine = createParser().with("conflicts", conflict);
 
         const path = this.props.reader.joinPath(this.state.path, `${name}.ini`);
-        const conflicts = await this.props.reader.reduceTextFile(path,
-            (out: Conflict[], line: string) => {
-                if (line.startsWith("[")) {
-                    inConflicts = line === "[conflicts]";
-                    return;
-                }
-
-                if (!inConflicts) return;
-
-                const assignment = line.indexOf("=");
-                if (assignment < 1) return;
-
-                const file = line.slice(0, assignment).trim();
-                const parts = line.slice(assignment + 1).trim().split(" ");
-
-                out.push({file, kind: parts[0], other: parts[parts.length - 1]});
-            },
-            []) as Conflict[];
+        await this.props.reader.reduceTextFile(
+            path, (_: null, line: string) => parseIniLine(line));
 
         this.setState(s => {
             const halted = s.halted.slice();
-            halted[index] = {name, loading: false, conflicts};
+            halted[index] = {
+                name,
+                loading: false,
+                conflicts: conflict.instances,
+            };
             return {halted};
         });
     };
@@ -125,7 +130,6 @@ export class Conflicts extends React.PureComponent<Props, State> {
         return <li>
             <div>
                 <img src={`thumb://${joinPath(this.state.path, file)}`} />
-                <img src={`thumb://${joinPath(this.state.path, other)}`} />
             </div>
             <div className="actions">
                 <span>
