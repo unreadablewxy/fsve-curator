@@ -1,7 +1,7 @@
 import "./conflicts.sass";
 import React from "react";
 import type {match as Match} from "react-router";
-import type {Dirent} from "fs";
+import type {Dirent, Stats} from "fs";
 import {mdiCompare, mdiHandRight, mdiTrashCanOutline, mdiVectorCombine} from "@mdi/js";
 import {Icon} from "@mdi/react";
 
@@ -17,6 +17,8 @@ interface PathProps {
 interface Props extends PathProps {
     [ServiceID]: Service;
     reader: any;
+
+    onNavigate: (path: string, state?: unknown) => void;
 }
 
 interface Conflict {
@@ -65,10 +67,10 @@ export class Conflicts extends React.PureComponent<Props, State> {
         const hopperName = this.props.hopper;
         const hopper = hopperName && this.service.hoppers?.find(h => h.name === hopperName);
 
-        this.state = {
+        this.state = Object.assign({
             path: hopper ? hopper.path : null,
             halted: [],
-        };
+        }, this.props.initialState);
     }
 
     handleRefreshHalted = async (index: number) => {
@@ -134,7 +136,9 @@ export class Conflicts extends React.PureComponent<Props, State> {
             <div className="actions">
                 <span>
                     <span>{kind.slice(1).trim()}</span>
-                    <button title="Compare"><Icon path={mdiCompare} /></button>
+                    <button title="Compare" onClick={() => this.handleCompare(other, file)}>
+                        <Icon path={mdiCompare} />
+                    </button>
                 </span>
                 <span>
                     <button title="Combine Group"><Icon path={mdiVectorCombine} /></button>
@@ -169,6 +173,18 @@ export class Conflicts extends React.PureComponent<Props, State> {
 
     handleConnect = () => {
         this.forceUpdate();
+    };
+
+    handleCompare = async (existing: string, blocked: string) => {
+        const match = /(\d+)\/(\d+)/.exec(existing);
+        if (match) {
+            existing = this.service.getPath("by-order", match[1], match[2]);
+        } else {
+            existing = this.service.getPath("by-id", existing);
+        }
+
+        blocked = this.props.reader.joinPath(this.state.path, blocked);
+        this.props.onNavigate(`/compare?left=${existing}&right=${blocked}`);
     };
 }
 

@@ -160,7 +160,7 @@ export class Similars extends React.PureComponent<Props, State> {
         const browsing = this.props.browsing;
         const {path: directory, names} = browsing.files;
         const file = names[browsing.focusedFile];
-        const left = this.service.getPath(s.group, s.index);
+        const left = this.service.getPath("by-order", s.group, s.index);
         this.props.onNavigate(`/compare?left=${left}&right=${directory}/${file}`);
     }
 }

@@ -254,11 +254,13 @@ export class Service extends EventEmitter implements Events {
         return result;
     }
 
-    public getPath(group: number, index: number): string {
+    getPath(index: "by-order", group: number | string, fileIndex: number | string): string;
+    getPath(index: "by-id", id: string): string;
+    getPath(index: "by-order" | "by-id", ...parts: unknown[]): string {
         if (!this.session)
             return "";
 
-        return `${this.session.collectionPath}/by-order/${group}/${index}`;
+        return `${this.session.collectionPath}/${index}/${parts.join("/")}`;
     }
 
     public disconnect(): void {
