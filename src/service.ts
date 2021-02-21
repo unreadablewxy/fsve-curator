@@ -272,7 +272,7 @@ export class Service extends EventEmitter implements Events {
         configPath: string,
         collectionPath: string,
     ): Promise<Partial<Session>> {
-        const thumbRoot = this.reader.joinPath(collectionPath, "thumbnail");
+        const thumbRoot = this.reader.joinPath(collectionPath, "cache", "thumbnail");
         const thumbPathGenBuilder = new ThumbnailPathGeneratorBuilder(thumbRoot);
         const hopperBuilder = new HopperBuilder(this.reader.joinPath("a", "b")[1]);
         
