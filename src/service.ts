@@ -12,7 +12,7 @@ enum Opcode /*: uint32_t */ {
     Offer,
     Query,
     Config,
-};
+}
 
 enum Status /*: uint32_t */ {
     Ok = 0,
@@ -20,7 +20,7 @@ enum Status /*: uint32_t */ {
     Unexpected, // Unexpected error
     InvalidParams, // Parameters were not valid
     NotFound, // A requested resource is missing
-};
+}
 
 // UC/CP20/TSC<scm.uc/fs-curator/src/ipc/request.hpp::uc::ipc::Request
 
