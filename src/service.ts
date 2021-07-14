@@ -1,5 +1,4 @@
 import {EventEmitter} from "events";
-import type {Socket} from "net";
 
 import {createParser} from "./ini";
 
@@ -24,13 +23,12 @@ enum Status /*: uint32_t */ {
 
 // UC/CP20/TSC<scm.uc/fs-curator/src/ipc/request.hpp::uc::ipc::Request
 
-const TextEncoding = "utf-8";
-const ResponseHeaderSize = 8;
-const RequestHeaderSize = 8;
-
 const NotConnected = "Not connected to curator service";
 
 export const id = "de.unreadableco.fs-curator.service";
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 export interface Similar {
     readonly group: number;
@@ -146,70 +144,58 @@ class HopperBuilder {
     }
 }
 
-interface Request {
-    ready: (buffer: Buffer) => void;
-    fail: (err: Error) => void;
-}
+function translateError(status: Status, buffer: Uint8Array): string {
+    if (buffer.length > 4)
+        return decoder.decode(buffer.slice(4));
 
-class Connection {
-    private readonly requests: Request[] = [];
+    switch (status) {
+    case Status.InvalidParams:
+        return "Bad request";
+    case Status.NotFound:
+        return "No data available";
+    case Status.Unexpected:
+        return "Unexpected internal error";
+    case Status.Unsupported:
+        return "Unsupported request";
 
-    constructor(private readonly socket: Socket) {
-        this.socket.on("data", this.onData.bind(this));
-    }
-
-    sendAndReceive(request: any): Promise<Buffer> {
-        request.send(this.socket);
-        return new Promise((ready, fail) => {
-            this.requests.push({ready, fail});
-        });
-    }
-
-    close() {
-        this.socket.destroy();
-    }
-
-    private onData(buffer: Buffer): void {
-        const {ready, fail} = this.requests.shift() as Request;
-
-        const status = buffer.readUInt32LE(0);
-        if (!status)
-            return ready(buffer);
-
-        let message: string;
-        if (buffer.length > ResponseHeaderSize)
-            message = buffer.toString(TextEncoding, ResponseHeaderSize);
-        else switch (status) {
-        case Status.InvalidParams:
-            message = "Bad request";
-            break;
-        case Status.NotFound:
-            message = "No data available";
-            break;
-        case Status.Unexpected:
-            message = "Unexpected internal error";
-            break;
-        case Status.Unsupported:
-            message = "Unsupported request";
-            break;
-        default:
-            message = `Unrecognized status code: ${status}`;
-            break;
-        }
-
-        fail(new Error(message));
+    default:
+        return `Unrecognized status code: ${status}`;
     }
 }
 
-interface Session extends Connection {
+interface Session {
     configPath: string;
     collectionPath: string;
     thumbnailPathGenerators: PathGenerator[];
     hoppers: Hopper[];
+
+    call(payload: Uint8Array): Promise<Uint8Array>;
+    close(): void;
 }
 
 interface Events {
     on(event: "connect", handler: (connected: boolean) => void): this;
+}
+
+function createConfigRequest(): Uint8Array {
+    const request = new Uint32Array(1);
+    request[0] = Opcode.Config;
+    return new Uint8Array(request.buffer);
+}
+
+function createPhashRequest(path: string): Uint8Array {
+    const request = new Uint8Array(4 + 4 + 6 + path.length);
+
+    const out = new DataView(request.buffer);
+    out.setUint32(0, Opcode.Query, true);
+    out.setUint32(4, 3, true); // result count limit
+
+    encoder.encodeInto("phash", request.subarray(8));
+    out.setUint8(13, 0);
+
+    encoder.encodeInto(path, request.subarray(14));
+
+    return request;
 }
 
 export class Service extends EventEmitter implements Events {
@@ -226,8 +212,6 @@ export class Service extends EventEmitter implements Events {
 
         this.ipc = ipc;
         this.reader = reader;
-
-        this.onDisconnect = this.onDisconnect.bind(this);
     }
 
     public get connected(): boolean {
@@ -296,45 +280,40 @@ export class Service extends EventEmitter implements Events {
     }
 
     public async connect(path: string): Promise<void> {
-        const socket = await this.ipc.connect(path);
-        const connection = new Connection(socket);
-
-        const request = this.ipc.createRequest().addUInt32(Opcode.Config, 0);
-        const buffer = await connection.sendAndReceive(request);
-
+        const proxy = await this.ipc.connect(path, this.onDisconnect.bind(this)) as Session;
+        const buffer = await proxy.call(createConfigRequest());
         const [
             configPath,
             collectionPath,
-        ] = buffer.toString(TextEncoding, ResponseHeaderSize, buffer.length).split("\0");
+        ] = decoder.decode(buffer.slice(4)).split("\0");
 
         const sessionPatch = await this.parseConfig(configPath, collectionPath);
-        this.session = Object.assign(connection as Session, sessionPatch);
+        this.session = Object.assign(proxy, sessionPatch);
 
-        socket.on("close", this.onDisconnect);
         this.emit("connect", true);
     }
 
     public async requestPhashQuery(directory: string, file: string): Promise<Similar[]> {
         const session = this.session;
         if (!session)
-            return Promise.reject(new Error(NotConnected));
+            throw new Error(NotConnected);
 
-        const CandidateLimit = 3;
+        const request = createPhashRequest(
+            this.reader.joinPath(directory, file));
 
-        const request = this.ipc.createRequest();
-        request.addUInt32(Opcode.Query, 0, CandidateLimit)
-            .addString("phash\0")
-            .addString(this.reader.joinPath(directory, file))
-            .setUInt32(4, request.fill - RequestHeaderSize);
+        const r = await session.call(request);
+        const view = new DataView(r.buffer, r.byteOffset, r.byteLength);
 
-        const buffer = await session.sendAndReceive(request);
+        const status = view.getUint32(0, true);
+        if (status)
+            throw new Error(translateError(status, r));
 
         const result: Similar[] = [];
-        for (let read = ResponseHeaderSize; read < buffer.length; read += 12)
+        for (let read = 4; read < r.byteLength; read += 12)
             result.push({
-                group: buffer.readUInt32LE(read),
-                index: buffer.readUInt32LE(read + 4),
-                diff:  buffer.readUInt32LE(read + 8),
+                group: view.getUint32(read, true),
+                index: view.getUint32(read + 4, true),
+                diff:  view.getUint32(read + 8, true),
             });
 
         return result;
