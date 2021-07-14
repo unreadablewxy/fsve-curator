@@ -122,7 +122,8 @@ class HopperBuilder {
     }
 
     onAssignment(variable: string, value: string) {
-        if (variable !== "path") return;
+        if (variable !== "path" ||
+            this.instances.find(v => v.path === value)) return;
 
         this.product.path = value;
 
