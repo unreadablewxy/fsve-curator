@@ -13,7 +13,7 @@ export class Image extends React.PureComponent<Props, State> {
         super(props);
 
         this.state = {
-            tried: 1,
+            tried: 0,
         };
 
         this.handleError = this.handleError.bind(this);
