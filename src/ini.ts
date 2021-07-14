@@ -12,8 +12,8 @@ export function createParser(): Parser {
     let section = "";
     let listener: Listener | undefined;
 
-    function result(line: string): void {
-        if (!line) return;
+    function result(line: string): boolean {
+        if (!line) return true;
 
         if (line.startsWith('[') || line === "\0") {
             if (listener)
@@ -24,13 +24,15 @@ export function createParser(): Parser {
         } else if (listener) {
             const assignment = line.indexOf("=");
             if (assignment < 1)
-                return;
+                return true;
 
             const variable = line.slice(0, assignment).trim();
             const value = line.slice(assignment + 1).trim();
 
             listener.onAssignment(variable, value);
         }
+
+        return true;
     }
 
     result.with = function(section: string, listener: Listener) {
