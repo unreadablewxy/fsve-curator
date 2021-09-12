@@ -1,10 +1,10 @@
 {
-  "name": "fs-viewer-curator-extension",
+  "name": "fsve-curator",
   "version": "0.0.0",
   "description": "Add fs-curator features to fs-viewer",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/unreadablewxy/fs-viewer-curator-extension.git"
+    "url": "git+https://github.com/unreadablewxy/fsve-curator.git"
   },
   "author": {
     "name": "UnreadableCode",
@@ -13,16 +13,16 @@
   },
   "license": "GPL-2.0",
   "bugs": {
-    "url": "https://github.com/unreadablewxy/fs-viewer-curator-extension/issues"
+    "url": "https://github.com/unreadablewxy/fsve-curator/issues"
   },
-  "homepage": "https://github.com/unreadablewxy/fs-viewer-curator-extension#readme",
+  "homepage": "https://github.com/unreadablewxy/fsve-curator#readme",
   "main": "dist/index.js",
   "scripts": {
     "test-types": "tsc",
     "build": "webpack --mode=production",
     "watch": "webpack --mode=development --watch",
     "clean": "rm -rf build",
-    "link": "mkdir -p ~/.fs-viewer-extensions/fs-curator && ln -s $PWD/build/index.* ~/.fs-viewer-extensions/fs-curator"
+    "link": "mkdir -p ~/.fs-viewer-extensions/fsve-curator && ln -s $PWD/{build/index.*,package.json} ~/.fs-viewer-extensions/fsve-curator"
   },
   "devDependencies": {
     "@babel/core": "^7.15.0",

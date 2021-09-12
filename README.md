@@ -1,5 +1,5 @@
-# fs-viewer-curator-extension
-fs-curator extension for fs-viewer
+# fsve-curator
+fs-viewer extension to query and manage collections managed by fs-curator
 
 ## How to install
 
@@ -17,7 +17,7 @@ npm install && npm run link
 3. Add the following property to the JSON file
 ```json
 {
-  "extensions":["fs-curator"]
+  "extensions":["fsve-curator"]
 }
 ```
 
